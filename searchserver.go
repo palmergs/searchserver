@@ -80,10 +80,12 @@ func main() {
 	serverPort := flag.Int("p", 6060, "server port")
 	flag.Parse()
 
-	fmt.Printf("Starting server on port %v...", *serverPort)
+	serverAddr := fmt.Sprintf(":%v", *serverPort)
+	fmt.Printf("Starting server on %v...", serverAddr)
+
 	http.HandleFunc("/search/", searchHandler)
 	http.HandleFunc("/tokens/", tokenHandler)
-	http.ListenAndServe(fmt.Sprintf(":%v", *serverPort), nil)
+	http.ListenAndServe(serverAddr, nil)
 
 	fmt.Printf("done\n")
 }

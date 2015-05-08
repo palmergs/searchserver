@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"flag"
 	"net/http"
 	"strings"
 	"regexp"
@@ -75,8 +76,14 @@ func getTokenHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	fmt.Println("Starting server on port 6060...")
+
+	serverPort := flag.Int("p", 6060, "server port")
+	flag.Parse()
+
+	fmt.Printf("Starting server on port %v...", *serverPort)
 	http.HandleFunc("/search/", searchHandler)
 	http.HandleFunc("/tokens/", tokenHandler)
-	http.ListenAndServe(":6060", nil)
+	http.ListenAndServe(fmt.Sprintf(":%v", *serverPort), nil)
+
+	fmt.Printf("done\n")
 }

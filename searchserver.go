@@ -8,23 +8,44 @@ import (
 	"encoding/json"
 	"regexp"
 	"github.com/palmergs/tokensearch"
+	"io"
+	"io/ioutil"
+	"unicode/utf8"
 )
 
 var root = tokensearch.NewTokenNode()
 
 var validPath = regexp.MustCompile("^/tokens/([a-zA-Z0-9_-]+)$")
 
+type TokenMatch struct {
+	Matches 	[]*tokensearch.Token
+	StartPos	int
+	EndPos		int
+}
+
+
 func searchHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	query := r.Form.Get("q")
 	fmt.Printf("search :: %v\n", query)
 
-	matches, err := root.Find(query)
-	if err != nil {
-		http.Error(w, "Not found", 404)
-	} else {
-		json.NewEncoder(w).Encode(matches)
+	allMatches := make([]*TokenMatch, 0)
+	onMatch := func(matches []*tokensearch.Token, startPos int, endPos int) {
+		if matches != nil && len(matches) > 0 {
+			tokenMatch := &TokenMatch{Matches: matches, StartPos: startPos, EndPos: endPos}
+			allMatches = append(allMatches, tokenMatch)
+		}
 	}
+
+	pool := tokensearch.NewTokenNodeVisitorPool(root)
+	for i, w := 0, 0; i < len(query); i += w {
+		runeValue, width := utf8.DecodeRuneInString(query[i:])
+		w = width
+
+		pool.Advance(runeValue, i, onMatch)
+	}
+
+	json.NewEncoder(w).Encode(allMatches)
 }
 
 func tokensHandler(w http.ResponseWriter, r *http.Request) {
@@ -36,32 +57,39 @@ func tokensHandler(w http.ResponseWriter, r *http.Request) {
 	case "POST", "PUT":
 		insertTokenHandler(w, r)
 	case "GET", "":
-		getTokenHandler(w, r)
+		getTokensHandler(w, r)
 	}
 }
 
 func insertTokenHandler(w http.ResponseWriter, r *http.Request) {
-	ident := r.FormValue("ident")
-	display := r.FormValue("display")
-	category := r.FormValue("category")
-	token := tokensearch.NewToken(ident, display, category)
-	_, err := root.Insert(token)
+
+	var token tokensearch.Token
+	body, err := ioutil.ReadAll(io.LimitReader(r.Body, 4097))
 	if err != nil {
-		http.Error(w, err.Error(), 401)
-	} else {
-		w.WriteHeader(http.StatusOK)
+		panic(err)
+	}
+	if err := r.Body.Close(); err != nil {
+		panic(err)
+	}
+	if err := json.Unmarshal(body, &token); err != nil {
+		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+		w.WriteHeader(422)
+		if err := json.NewEncoder(w).Encode(err); err != nil {
+			panic(err)
+		}
+	}
+
+	root.Insert(&token)
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(token); err != nil {
+		panic(err)
 	}
 }
 
-func getTokenHandler(w http.ResponseWriter, r *http.Request) {
-	ident := validPath.FindStringSubmatch(r.URL.Path)
-	if ident == nil {
-		http.NotFound(w, r)
-	} else {
-		// TODO: scan through tree looking for matching strings
-		// root.FindTokens(ident)
-		fmt.Fprintf(w, "GET Token : %v", ident[1])
-	}
+func getTokensHandler(w http.ResponseWriter, r *http.Request) {
+	matches := root.AllValues(999)
+	json.NewEncoder(w).Encode(matches)
 }
 
 func main() {

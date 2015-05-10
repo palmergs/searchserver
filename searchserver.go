@@ -17,32 +17,49 @@ var root = tokensearch.NewTokenNode()
 
 var validPath = regexp.MustCompile("^/tokens/([a-zA-Z0-9_-]+)$")
 
-type TokenMatch struct {
-	Matches 	[]*tokensearch.Token
-	StartPos	int
-	EndPos		int
-}
-
-
 func searchHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
-	query := r.Form.Get("q")
-	fmt.Printf("search :: %v\n", query)
+	doc := r.Form.Get("q")
+	fmt.Printf("search :: %v\n", doc)
 
-	allMatches := make([]*TokenMatch, 0)
-	onMatch := func(matches []*tokensearch.Token, startPos int, endPos int) {
+	allMatches := make([]*tokensearch.TokenMatch, 0)
+	onMatch := func(matches []*tokensearch.TokenMatch) {
 		if matches != nil && len(matches) > 0 {
-			tokenMatch := &TokenMatch{Matches: matches, StartPos: startPos, EndPos: endPos}
-			allMatches = append(allMatches, tokenMatch)
+			allMatches = append(allMatches, matches...)
 		}
 	}
 
 	pool := tokensearch.NewTokenNodeVisitorPool(root)
-	for i, w := 0, 0; i < len(query); i += w {
-		runeValue, width := utf8.DecodeRuneInString(query[i:])
+	lastWasChar := true
+	charCount := 0
+	lastPosition := 0
+	for i, w := 0, 0; i < len(doc); i += w {
+		runeValue, width := utf8.DecodeRuneInString(doc[i:])
 		w = width
 
-		pool.Advance(runeValue, i, onMatch)
+		if w > 0 {
+			normalizedRune, currIsChar := tokensearch.NormalizeRune(runeValue)
+			if currIsChar {
+
+				if charCount > 0 && !lastWasChar {
+
+					// advance for a deferred separator character for existing visitors
+					pool.Advance(' ', lastPosition, onMatch)
+				}
+
+				if charCount == 0 || !lastWasChar {
+
+					// visitors begin parsing at beginning of valid strings
+					pool.InitVisitor(i)
+				}
+
+				// advance of token character
+				pool.Advance(normalizedRune, i, onMatch)
+				charCount++
+				lastPosition = i
+			}
+			lastWasChar = currIsChar
+		}
 	}
 
 	json.NewEncoder(w).Encode(allMatches)
@@ -51,8 +68,6 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 func tokensHandler(w http.ResponseWriter, r *http.Request) {
 
 	r.ParseForm()
-	fmt.Printf("%v tokens", r.Method)
-
 	switch strings.ToUpper(r.Method) {
 	case "POST", "PUT":
 		insertTokenHandler(w, r)
@@ -79,7 +94,9 @@ func insertTokenHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	token.InitKey();
 	root.Insert(&token)
+
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(token); err != nil {

@@ -104,6 +104,30 @@ func insertTokenHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func loadFile(pathToFile string) {
+
+	body, err := ioutil.ReadFile(pathToFile)
+	if err != nil {
+		panic(err)
+	}
+
+	count := 0
+	var importJson []interface{}
+	json.Unmarshal(body, &importJson)
+
+	for _, mapJson := range importJson {
+		m := mapJson.(map[string]interface{})
+		_, err := root.Insert(tokensearch.NewToken(
+				fmt.Sprintf("%.f", m["id"].(float64)),
+				m["label"].(string),
+				m["category"].(string)))
+		if err == nil {
+			count++
+		}
+	}
+	fmt.Printf("Inserted %d values\n", count)
+}
+
 func getTokensHandler(w http.ResponseWriter, r *http.Request) {
 	matches := root.AllValues(999)
 	json.NewEncoder(w).Encode(matches)
@@ -112,10 +136,16 @@ func getTokensHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 
 	serverPort := flag.Int("p", 6060, "server port")
+	importFile := flag.String("f", "", "prepopulate with file")
 	flag.Parse()
 
 	serverAddr := fmt.Sprintf(":%v", *serverPort)
 	fmt.Printf("Starting server on %v...\n", serverAddr)
+
+	if *importFile != "" {
+		fmt.Printf("Prepopulate tree with %s...\n", *importFile)
+		loadFile(*importFile)
+	}
 
 	http.HandleFunc("/search", searchHandler)
 	http.HandleFunc("/tokens", tokensHandler)

@@ -49,6 +49,6 @@ func insertTokenHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getTokensHandler(w http.ResponseWriter, r *http.Request) {
-	matches := root.AllValues(999)
+	matches := root.AllValues(9999)
 	json.NewEncoder(w).Encode(matches)
 }

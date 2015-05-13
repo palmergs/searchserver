@@ -24,7 +24,7 @@ func main() {
 
 	if *importFile != "" {
 		log.Printf("Prepopulate tree with %s...\n", *importFile)
-		AppendTokens(*importFile, root)
+		root.InsertFromFile(*importFile)
 	}
 
 	http.HandleFunc("/search", RequestLog(SearchHandler, "search"))

@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"encoding/json"
+	"log"
 	"github.com/palmergs/tokensearch"
 )
 
@@ -27,7 +28,7 @@ func deleteTokenHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, err)
 	} else {
-		token.InitKey();
+		token.InitKey()
 		root.Remove(&token)
 		writeToken(w, token)
 	}
@@ -38,7 +39,7 @@ func insertTokenHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, err)
 	} else {
-		token.InitKey();
+		token.InitKey()
 		root.Insert(&token)
 		writeToken(w, token)
 	}
@@ -55,16 +56,17 @@ func getTokensHandler(w http.ResponseWriter, r *http.Request) {
 
 func unmarshalToken(r *http.Request) (tokensearch.Token, error) {
 	var token tokensearch.Token
+	defer r.Body.Close()
 	body, err := ioutil.ReadAll(io.LimitReader(r.Body, 4097))
 	if err != nil {
-		return token, err
-	}
-	if err := r.Body.Close(); err != nil {
+		log.Printf("errored: %v\n", err)
 		return token, err
 	}
 	if err := json.Unmarshal(body, &token); err != nil {
+		log.Printf("errored: %v\n", err)
 		return token, err
 	}
+	log.Printf("token: %v\n", token)
 	return token, nil
 }
 

@@ -1,6 +1,6 @@
 # searchserver
 
-HTTP server to search for strings in documents
+HTTP server to search for strings in documents. What is this good for? Not a whole lot, but if you have a fairly static set of tokens and a large number of document that you want to search to see if they contain those tokens this might be tool for you. Unfortunately, this code base is now about 5 years old and I wouldn't trust it any farther than I could throw it so use at your own risk.
 
 Usage:
     
